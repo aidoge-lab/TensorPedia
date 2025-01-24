@@ -25,3 +25,9 @@ For each operator, you can view its mathematical formulas, input and output tens
 - Svelte as the UI framework
 - No backend required
 - Supports both mobile and web browser access
+- 没有其他前端技术栈依赖，尽量简单, 就是Svelte + TensorFlow.js
+
+# 操作手册
+
+- npm install 
+- npm run dev
