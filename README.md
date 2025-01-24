@@ -11,6 +11,8 @@ For each operator, you can view its mathematical formulas, input and output tens
 
 # Basic UI Elements
 
+- 使用Dark Mode 配色, 体现科技感
+
 ## Tensor Visualization
 
 ## Operator Visualization

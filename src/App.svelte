@@ -59,23 +59,26 @@
   }
 
   .operator {
-    background: #f5f5f5;
-    padding: 1rem;
+    background: #1e1e1e;
+    padding: 1.5rem;
     border-radius: 8px;
     margin-top: 2rem;
+    border: 1px solid #333;
   }
 
   .formula {
-    background: #fff;
-    padding: 1rem;
+    background: #2a2a2a;
+    padding: 1.5rem;
     border-radius: 4px;
     margin: 1rem 0;
+    border: 1px solid #404040;
   }
 
   .interactive {
-    background: #fff;
-    padding: 1rem;
+    background: #2a2a2a;
+    padding: 1.5rem;
     border-radius: 4px;
+    border: 1px solid #404040;
   }
 
   .input-group {
@@ -86,24 +89,45 @@
     width: 100%;
     padding: 0.5rem;
     margin: 0.5rem 0;
+    background: #1a1a1a;
+    border: 1px solid #404040;
+    color: #ffffff;
+    border-radius: 4px;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: #7cb9ff;
   }
 
   button {
-    background: #4CAF50;
+    background: #2563eb;
     color: white;
     border: none;
     padding: 0.5rem 1rem;
     border-radius: 4px;
     cursor: pointer;
+    font-weight: 500;
   }
 
   button:hover {
-    background: #45a049;
+    background: #1d4ed8;
+  }
+
+  pre {
+    background: #1a1a1a;
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    color: #ffffff;
+    border: 1px solid #333;
   }
 
   .output {
-    background: #f8f8f8;
-    padding: 1rem;
-    border-radius: 4px;
+    margin-top: 1rem;
+  }
+
+  .output h4 {
+    margin-bottom: 0.5rem;
   }
 </style>
