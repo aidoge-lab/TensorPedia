@@ -1,21 +1,7 @@
 import * as tf from '@tensorflow/tfjs';
 
-export interface OperatorInfo {
-    name: string;
-    description: string;
-    formula: string;
-    category: string;
-    subcategory: string;
-}
 
 export class Relu {
-    static info: OperatorInfo = {
-        name: 'ReLU',
-        description: 'Rectified Linear Unit activation function',
-        formula: 'f(x) = max(0, x)',
-        category: 'Activation',
-        subcategory: 'Non-linear'
-    };
 
     static forward(input: tf.Tensor): tf.Tensor {
         return tf.relu(input);

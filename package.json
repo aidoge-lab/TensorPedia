@@ -10,7 +10,10 @@
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@tensorflow/tfjs": "^4.17.0"
+    "@tensorflow/tfjs": "^4.17.0",
+    "@types/d3": "^7.4.3",
+    "d3": "^7.9.0",
+    "onnxruntime-web": "^1.20.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.0.1",

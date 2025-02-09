@@ -1,31 +1,38 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Relu } from './lib/operators/activation/Relu';
+  // import { Relu } from './lib/operators/activation/Relu';
+  import Relu from './lib/operators/activation/Relu.svelte';
+  import Draw3dTensor from './lib/operators/activation/Draw3dTensor.svelte';
+
   import * as tf from '@tensorflow/tfjs';
 
   let inputValue = "-1,0,1,2";
   let output = "";
   
-  function runRelu() {
-    try {
-      const input = tf.tensor(inputValue.split(',').map(Number));
-      const result = Relu.forward(input);
-      output = JSON.stringify(result.arraySync());
-    } catch (error) {
-      output = "Error: Invalid input";
-    }
-  }
+  // function runRelu() {
+  //   try {
+  //     const input = tf.tensor(inputValue.split(',').map(Number));
+  //     const result = Relu.forward(input);
+  //     output = JSON.stringify(result.arraySync());
+  //   } catch (error) {
+  //     output = "Error: Invalid input";
+  //   }
+  // }
 
-  onMount(() => {
-    // Example usage when component mounts
-    Relu.example();
-  });
+  // onMount(() => {
+  //   // Example usage when component mounts
+  //   Relu.example();
+  // });
 </script>
 
 <main>
   <h1>TensorPedia</h1>
+
+  <Relu />
+
+  <!-- <Draw3dTensor /> -->
   
-  <section class="operator">
+  <!-- <section class="operator">
     <h2>{Relu.info.name}</h2>
     <p>{Relu.info.description}</p>
     
@@ -48,7 +55,7 @@
         <pre>{output}</pre>
       </div>
     </div>
-  </section>
+  </section> -->
 </main>
 
 <style>
