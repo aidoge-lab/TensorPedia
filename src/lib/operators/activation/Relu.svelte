@@ -13,6 +13,7 @@
     import { TensorData } from '../../tensor/TensorData';
     import { TensorDraw } from '../../tensor/TensorDraw';
     import { TensorIndices } from '../../tensor/TensorIndices';
+    import { TensorDrawConfig } from '../../tensor/TensorDrawConfig';
     
     let diagramContainer: HTMLElement;
 
@@ -53,14 +54,22 @@
                                                      1, 2, 3, 4, 5, 6,
                                                      7, 8, 9, 10, 11, 12,
                                                      13, 14, 15, 16, 17, 18], [6, 6], 'float32'));
-        inputTensor = new TensorData(tf.tensor([-17, -16, -15, -14, -13, -12,
-                                                     -11, -10, -9, -8, -7, -6,
-                                                     -5, -4, -3, -2, -1, 0,
-                                                     1, 2, 3, 4, 5, 6,
-                                                     7, 8, 9], [3, 3, 3], 'float32'));
+        let tensorData = []
+        let dim = [3,3,3]
+        for (let i = 0; i < dim[0]; i++) {
+            for (let j = 0; j < dim[1]; j++) {
+                for (let k = 0; k < dim[2]; k++) {
+                    tensorData.push(Math.floor(Math.random() * 21) - 10);
+                }
+            }
+        }
+        inputTensor = new TensorData(tf.tensor(tensorData, dim, 'float32'));
         let tensorDrawSize = 300;
         let inputTensorPosition = new DrawBounding(0, 0, tensorDrawSize, tensorDrawSize);
-        let inputTensorDraw = new TensorDraw(svg, inputTensorPosition, inputTensor);
+        let inputTensorDrawConfig = new TensorDrawConfig();
+        inputTensorDrawConfig.showToggleDetailButton = false;
+        inputTensorDrawConfig.showToggle3DViewButton = false;
+        let inputTensorDraw = new TensorDraw(svg, inputTensorPosition, inputTensor, null, null, null, inputTensorDrawConfig);
         inputTensorDraw.draw();
 
         let reluOperatorPosition = new DrawBounding(tensorDrawSize * 1.5, 0, tensorDrawSize, tensorDrawSize);
@@ -93,9 +102,26 @@
 
         let outputTensor = inputTensor.relu();
         let outputTensorPosition = new DrawBounding(tensorDrawSize * 3, 0, tensorDrawSize, tensorDrawSize);
+
+        let outputTensorDrawConfig = new TensorDrawConfig();
+        outputTensorDrawConfig.showToggleDetailButton = true;
+        outputTensorDrawConfig.showToggle3DViewButton = true;
+        outputTensorDrawConfig.onToggleDetailModeCallback = (isDetailMode: boolean) => {
+                // onToggleDetailMode
+                inputTensorDraw.toggleDetailMode(isDetailMode);
+            };
+        outputTensorDrawConfig.onToggle3DViewCallback = () => {
+                // onToggle3DView
+                inputTensorDraw.toggle3DView();
+            }
+        outputTensorDrawConfig.onRotate3DViewCallback = (rotX: number, rotY: number, rotZ: number) => {
+            inputTensorDraw.rotate3DView(rotX, rotY, rotZ);
+        };
+        
         let outputTensorDraw = new TensorDraw(svg, outputTensorPosition, outputTensor, (tensorIndices: TensorIndices) => {
 
             inputTensorDraw.updateSelected(tensorIndices);
+            
             outputTensorDraw.updateSelected(tensorIndices);
             
             if (tensorIndices.getIndices()[0] === -2) {
@@ -171,7 +197,11 @@
                     .ease(d3.easeCubicOut)
                     .attr('stroke-width', 4);
             }
-        });
+        }
+        , inputTensor.getMinData(), inputTensor.getMaxData(),
+            outputTensorDrawConfig
+        );
+
         outputTensorDraw.draw();
 
         let lineInputToOperator = new DirectedConnectDraw(svg, inputTensorDraw.getRightConnectionPoint(), reluOperatorView.getLeftConnectionPoint());
