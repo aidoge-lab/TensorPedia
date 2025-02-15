@@ -20,8 +20,10 @@ export class TensorDraw {
         this.tensorData = tensorData;
         this.onCellSelectedCallback = onCellSelectedCallback;
         this.cells = [];  // 保存所有单元格的引用
+        this.cell3D = [];
         this.selectedTensorIndices = new TensorIndices([-2, -2, -2, -2]);
-        this.isDetailMode = true;
+        this.isDetailMode = false;
+        this.enable3DView = false;
         this.colorScale = d3.scaleSequential(d3.interpolateHclLong("purple", "orange")).domain([-1, 1]);
         this.currentDepthIndex = 0; // For 3D tensor depth index in detail mode
         
@@ -39,21 +41,28 @@ export class TensorDraw {
     }
 
     svg: d3.Selection<SVGSVGElement, unknown, null, undefined>;
+    tensorGroup2D: d3.Selection<SVGGElement, unknown, null, undefined> = null!;
+    tensorGroup3D: d3.Selection<SVGGElement, unknown, null, undefined> = null!;
     position: DrawBounding;
     tensorData: TensorData;
     onCellSelectedCallback: Function | null;
     cells: any[];
+    cell3D: any[];
     selectedTensorIndices: TensorIndices;
     isDetailMode: boolean;
     colorScale: d3.ScaleSequential<string, never>;
     valueTexts: d3.Selection<SVGTextElement, unknown, null, undefined>[] = [];
-    toggleButton: d3.Selection<SVGRectElement, unknown, null, undefined> = null!;
-    toggleKnob: d3.Selection<SVGCircleElement, unknown, null, undefined> = null!;
-    toggleText: d3.Selection<SVGTextElement, unknown, null, undefined> = null!;
+    toggleDetailViewButton: d3.Selection<SVGRectElement, unknown, null, undefined> = null!;
+    toggleDetailKnob: d3.Selection<SVGCircleElement, unknown, null, undefined> = null!;
+    toggle3DKnob: d3.Selection<SVGCircleElement, unknown, null, undefined> = null!;
+    toggleDetailViewText: d3.Selection<SVGTextElement, unknown, null, undefined> = null!;
+    toggle3DViewText: d3.Selection<SVGTextElement, unknown, null, undefined> = null!;
     depthText: d3.Selection<SVGTextElement, unknown, null, undefined> = null!;
     currentDepthIndex: number;
     pt: SVGPoint;
 
+    toggle3DViewButton: d3.Selection<SVGRectElement, unknown, null, undefined> = null!;
+    enable3DView: boolean;
     // 3D rotation properties
     isDragging: boolean;
     startX: number;
@@ -107,33 +116,51 @@ export class TensorDraw {
         ];
     }
 
+    toggle3DView() {
+        this.enable3DView = !this.enable3DView;
+        this.updateVisualization();
+
+        const knobSize = this.toggleHeight - 4;
+        
+        this.toggle3DViewButton
+            .attr('fill', this.enable3DView ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 255, 255, 0.1)');
+            
+        this.toggle3DKnob
+            .transition()
+            .duration(200)
+            .attr('cx', this.enable3DView ? (this.toggleWidth - 2 - knobSize/2) : (2 + knobSize/2));
+
+        this.toggle3DViewText
+            .text(this.enable3DView ? '3D' : '2D');
+    }
+
     toggleDetailMode() {
         this.isDetailMode = !this.isDetailMode;
         this.updateVisualization();
         
         const knobSize = this.toggleHeight - 4;
         
-        this.toggleButton
+        this.toggleDetailViewButton
             .attr('fill', this.isDetailMode ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 255, 255, 0.1)');
             
-        this.toggleKnob
+        this.toggleDetailKnob
             .transition()
             .duration(200)
             .attr('cx', this.isDetailMode ? (this.toggleWidth - 2 - knobSize/2) : (2 + knobSize/2));
 
-        this.toggleText
+        this.toggleDetailViewText
             .text(this.isDetailMode ? 'Detail' : 'Overview');
 
         // Show/hide depth text for 3D tensors
         if (this.tensorData.getDims().length === 3) {
-            this.depthText?.style('opacity', this.isDetailMode ? 1 : 0);
+            this.depthText?.style('opacity', this.enable3DView ? 1 : 0);
         }
     }
 
 
     mousePos: [number, number] = [0, 0];
     draw3DCube(tensorGroup: d3.Selection<SVGGElement, unknown, null, undefined>, dims: readonly number[]) {
-
+        tensorGroup.selectAll('*').remove();
         const depth = dims[0], rows = dims[1], cols = dims[2];
         const maxDim = Math.max(depth, rows, cols);
         const cubeSize = Math.min(this.position.width / (maxDim * 2), this.position.height / (maxDim * 2));
@@ -143,7 +170,6 @@ export class TensorDraw {
         const centerX = cubeSize;
         const centerY = this.position.height - cubeSize;
 
-        tensorGroup.selectAll('*').remove();
 
         // Add background rectangle
         tensorGroup.append('rect')
@@ -202,6 +228,8 @@ export class TensorDraw {
             {from: [0,0,0], to: [0,0,axisLength], label: 'dim2'}
         ];
 
+        this.cell3D = Array(dims[0]).fill(null).map(() => Array(dims[1]).fill(null).map(() => Array(dims[2]).fill(null)));
+
         axes.forEach(axis => {
             const start = this.project3Dto2D(axis.from[0], axis.from[1], axis.from[2], this.rotateX, this.rotateY, this.rotateZ);
             const end = this.project3Dto2D(axis.to[0], axis.to[1], axis.to[2], this.rotateX, this.rotateY, this.rotateZ);
@@ -216,13 +244,16 @@ export class TensorDraw {
                 .attr('marker-end', 'url(#arrowhead)');
 
             const textOffset = 15;
-            tensorGroup.append('text')
+            
+            
+            let textCell = tensorGroup.append('text')
                 .attr('x', end.x + centerX)
                 .attr('y', end.y + centerY - textOffset)
                 .attr('fill', 'orange')
                 .attr('text-anchor', 'middle')
                 .attr('dominant-baseline', 'middle')
                 .text(axis.label);
+
         });
 
         tensorGroup.on('mouseup', () => {
@@ -231,7 +262,6 @@ export class TensorDraw {
     
         tensorGroup.on('mouseleave', () => {
             this.isDragging = false;
-            console.log('mouseleave');
         });
 
         tensorGroup.on('mousemove', (event: MouseEvent) => {
@@ -248,7 +278,58 @@ export class TensorDraw {
             let mousePos = this.pt.matrixTransform(this.svg.node()!.getScreenCTM()!.inverse());
             this.mousePos = [mousePos.x - this.position.x, mousePos.y - this.position.y];
             this.draw3DCube(tensorGroup, dims);
+
+            let isMouseInContainer = this.checkMouseInContainer(dims);
+            if (isMouseInContainer) {
+                if (this.onCellSelectedCallback) {
+                    this.onCellSelectedCallback(this.selectedTensorIndices);
+                }
+            }
         });
+
+        let isMouseInContainer = this.checkMouseInContainer(dims);
+        this.drawTensor3D(tensorGroup, dims, isMouseInContainer);
+
+        // Setup mouse events for rotation
+        tensorGroup
+            .style('pointer-events', 'all')  // 确保元素可以接收事件
+            .on('mousedown.rotation', (event: MouseEvent) => {
+                this.isDragging = true;
+                this.startX = event.clientX;
+                this.startY = event.clientY;
+            })
+            .on('mousemove.rotation', (event: MouseEvent) => {
+                if (!this.isDragging) return;
+                
+                const deltaX = event.clientX - this.startX;
+                const deltaY = event.clientY - this.startY;
+                
+                if (event.shiftKey) {
+                    // Shift + drag for Z rotation
+                    this.rotateZ -= deltaX * 0.5;
+                } else {
+                    // Changed: Now deltaX controls rotation around dim2 (Y axis)
+                    // and deltaY controls rotation around dim1 (X axis)
+                    this.rotateY += deltaX * 0.5;  // Changed from -= to += for more intuitive movement
+                    this.rotateX -= deltaY * 0.5;
+                }
+                
+                this.startX = event.clientX;
+                this.startY = event.clientY;
+
+                this.draw3DCube(tensorGroup, dims);
+            });
+
+    }
+
+    checkMouseInContainer(dims: readonly number[]) {
+        const depth = dims[0], rows = dims[1], cols = dims[2];
+        const maxDim = Math.max(depth, rows, cols);
+        const cubeSize = Math.min(this.position.width / (maxDim * 2), this.position.height / (maxDim * 2));
+        const spacing = cubeSize * 0.125;
+        // Move origin to bottom left corner
+        const centerX = cubeSize;
+        const centerY = this.position.height - cubeSize;
 
         var isMouseInContainer = false;
         
@@ -299,11 +380,30 @@ export class TensorDraw {
                     const isMouseNearCell = 
                         Math.abs(this.mousePos[0] - (center.x + centerX)) < cellSize / 2 &&
                         Math.abs(this.mousePos[1] - (center.y + centerY)) < cellSize / 2;
-
+                    
+                    if (isMouseNearCell) {
+                        this.selectedTensorIndices = new TensorIndices([i, j, k]);
+                    }
                     isMouseInContainer = isMouseInContainer || isMouseNearCell;
                 }
             }
         }
+
+        return isMouseInContainer;
+    }
+
+    drawTensor3D(tensorGroup: d3.Selection<SVGGElement, unknown, null, undefined>, dims: readonly number[], isMouseInContainer: boolean) {
+        const depth = dims[0], rows = dims[1], cols = dims[2];
+        const maxDim = Math.max(depth, rows, cols);
+        const cubeSize = Math.min(this.position.width / (maxDim * 2), this.position.height / (maxDim * 2));
+        const spacing = cubeSize * 0.125;
+        // Move origin to bottom left corner
+        const centerX = cubeSize;
+        const centerY = this.position.height - cubeSize;
+
+
+        const minValue = this.tensorData.getMinData();
+        const maxValue = this.tensorData.getMaxData();
 
         // Draw each small cube
         for (let i = 0; i < depth; i++) {
@@ -353,59 +453,55 @@ export class TensorDraw {
                         Math.abs(this.mousePos[0] - (center.x + centerX)) < cellSize / 2 &&
                         Math.abs(this.mousePos[1] - (center.y + centerY)) < cellSize / 2;
 
+                    var strokeColor = (isMouseNearCell || !isMouseInContainer) ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)'
+                    
+                    if (this.selectedTensorIndices.getIndices().length === 3 && this.selectedTensorIndices.getIndices()[0] === i && this.selectedTensorIndices.getIndices()[1] === j && this.selectedTensorIndices.getIndices()[2] === k) {
+                        strokeColor = 'rgba(255, 165, 0, 1.0)';
+                    }
+
+                    const value = this.tensorData.getValue(i, j, k);
+                    const normalizedValue = (value - minValue) / (maxValue - minValue);
+                    const heatmapColor = this.colorScale(normalizedValue)
+                    const cellFaceColor = this.isDetailMode ? 'rgba(100, 100, 255, 0.0)' : (d3.color(heatmapColor)?.copy({opacity: 0.3})?.toString() || '');
+
                     faces.forEach(face => {
                         tensorGroup.append('path')
                             .attr('d', `M${vertices[face[0]].x + centerX},${vertices[face[0]].y + centerY}
                                       L${vertices[face[1]].x + centerX},${vertices[face[1]].y + centerY}
                                       L${vertices[face[2]].x + centerX},${vertices[face[2]].y + centerY}
                                       L${vertices[face[3]].x + centerX},${vertices[face[3]].y + centerY}Z`)
-                            .attr('fill', (isMouseNearCell || !isMouseInContainer) ? 'rgba(100, 100, 255, 0.0)' : 'rgba(100, 100, 255, 0)')
-                            .attr('stroke', (isMouseNearCell || !isMouseInContainer) ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)');
+                            .attr('fill', cellFaceColor)
+                            .attr('stroke', strokeColor);
                     });
 
-                    const value = this.tensorData.getValue(i, j, k);
                     // Add value text
-                    tensorGroup.append('text')
+                    let textCell = tensorGroup.append('text')
                         .attr('x', center.x + centerX)
                         .attr('y', center.y + centerY)
                         .attr('text-anchor', 'middle')
                         .attr('dominant-baseline', 'middle')
-                        .attr('fill', (isMouseNearCell || !isMouseInContainer) ? 'rgba(255, 165, 0, 1.0)' : 'rgba(255, 165, 0, 0.2)')
+                        // .attr('fill', (isMouseNearCell || !isMouseInContainer) ? 'rgba(255, 165, 0, 1.0)' : 'rgba(255, 165, 0, 0.2)')
+                        .attr('fill', heatmapColor)
                         .attr('font-size', '15px')
-                        .text(value);
+                        .text(this.isDetailMode ? value : '')
                 }
             }
         }
+    }
 
-        // Setup mouse events for rotation
-        tensorGroup
-            .style('pointer-events', 'all')  // 确保元素可以接收事件
-            .on('mousedown.rotation', (event: MouseEvent) => {
-                this.isDragging = true;
-                this.startX = event.clientX;
-                this.startY = event.clientY;
-            })
-            .on('mousemove.rotation', (event: MouseEvent) => {
-                if (!this.isDragging) return;
-                
-                const deltaX = event.clientX - this.startX;
-                const deltaY = event.clientY - this.startY;
-                
-                if (event.shiftKey) {
-                    // Shift + drag for Z rotation
-                    this.rotateZ -= deltaX * 0.5;
-                } else {
-                    // Changed: Now deltaX controls rotation around dim2 (Y axis)
-                    // and deltaY controls rotation around dim1 (X axis)
-                    this.rotateY += deltaX * 0.5;  // Changed from -= to += for more intuitive movement
-                    this.rotateX -= deltaY * 0.5;
-                }
-                
-                this.startX = event.clientX;
-                this.startY = event.clientY;
+    show3Donly() {
+        this.tensorGroup3D.style('visibility', 'visible')
+        this.tensorGroup3D.style('visibility', 'visible')
+            .style('pointer-events', 'all');
+        this.tensorGroup2D.style('visibility', 'hidden')
+            .style('pointer-events', 'none');
+    }
 
-                this.draw3DCube(tensorGroup, dims);
-            });
+    show2Donly() {
+        this.tensorGroup2D.style('visibility', 'visible')
+            .style('pointer-events', 'all');
+        this.tensorGroup3D.style('visibility', 'hidden')
+            .style('pointer-events', 'none');
     }
 
     updateVisualization() {
@@ -414,11 +510,14 @@ export class TensorDraw {
 
         // Clear existing visualization
 
-        // if (is3D && !this.isDetailMode) {
         if (is3D) {
-            const tensorGroup = this.svg.append('g');
-            this.draw3DCube(tensorGroup, dims);
-            return;
+            if (this.enable3DView) {
+                this.show3Donly();
+                this.draw3DCube(this.tensorGroup3D, dims);
+                return;
+            } else {
+                this.show2Donly();
+            }
         }
 
         // Rest of the existing updateVisualization code...
@@ -450,22 +549,26 @@ export class TensorDraw {
     }
 
     updateSelected(tensorIndices: TensorIndices) {
-        tensorIndices = this.translateTensorIndices2DForFlatView(tensorIndices);
         this.selectedTensorIndices = tensorIndices;
-        
+
         const dims = this.tensorData.getDims();
         var visibleDims = dims;
         
-        for (let row = 0; row < visibleDims[0]; row++) {
-            for (let col = 0; col < visibleDims[1]; col++) {
-                    const cell = this.cells[row]?.[col];
-                    if (cell) {
-                        const isSelected = (tensorIndices.getIndices()[0] === -1 || tensorIndices.getIndices()[0] === row) && 
-                                        (tensorIndices.getIndices()[1] === -1 || tensorIndices.getIndices()[1] === col);
-                        cell.attr('stroke', isSelected ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.2)')
-                            .attr('stroke-width', isSelected ? 2 : 1);
-                    }
+        if (dims.length === 2 || !this.enable3DView) {
+            var selectedTensorIndices2D = this.translateTensorIndices2DForFlatView(tensorIndices);
+            for (let row = 0; row < visibleDims[0]; row++) {
+                for (let col = 0; col < visibleDims[1]; col++) {
+                        const cell = this.cells[row]?.[col];
+                        if (cell) {
+                            const isSelected = (selectedTensorIndices2D.getIndices()[0] === -1 || selectedTensorIndices2D.getIndices()[0] === row) && 
+                                            (selectedTensorIndices2D.getIndices()[1] === -1 || selectedTensorIndices2D.getIndices()[1] === col);
+                            cell.attr('stroke', isSelected ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.2)')
+                                .attr('stroke-width', isSelected ? 2 : 1);
+                        }
+                }
             }
+        } else {
+            this.draw3DCube(this.tensorGroup3D, dims);
         }
     }
 
@@ -514,13 +617,10 @@ export class TensorDraw {
             .attr('transform', `translate(${this.position.x},${this.position.y})`)
             .style('pointer-events', 'all')
 
+        this.tensorGroup2D = tensorGroup;
+
         const dims = this.tensorData.getDims();
         const is3D = dims.length === 3;
-        // if (is3D && !this.isDetailMode) {
-        if (is3D) {
-            this.draw3DCube(tensorGroup, dims);
-            return;
-        }
 
         var visibleDims = this.translateDim2DForFlatView(dims);
 
@@ -532,6 +632,7 @@ export class TensorDraw {
 
         for (let i = 0; i < visibleDims[0]; i++) {
             for (let j = 0; j < visibleDims[1]; j++) {
+
                 const cell = tensorGroup.append('rect')
                     .attr('x', j * cellWidth)
                     .attr('y', i * cellHeight)
@@ -543,12 +644,13 @@ export class TensorDraw {
                     .attr('rx', 2)
                     .datum({row: i, col: j})
                     .on('mouseover', (event, d) => {
-                        
                         if (this.onCellSelectedCallback) {
-                            var indices = is3D ? [this.currentDepthIndex, d.row, d.col] : [d.row, d.col];
+                            var indices = [d.row, d.col];
                             // For 3D tensors, rearrange indices based on currentDepthIndex
-                            if (is3D) {
-                                if (this.currentDepthIndex === 1) {
+                            if (is3D && !this.enable3DView) {
+                                if (this.currentDepthIndex === 0) {
+                                    indices = [this.currentDepthIndex, d.row, d.col]
+                                } else if (this.currentDepthIndex === 1) {
                                     indices = [d.row, this.currentDepthIndex, d.col]
                                 } else if (this.currentDepthIndex === 2) {
                                     indices = [d.row, d.col, this.currentDepthIndex];
@@ -579,22 +681,79 @@ export class TensorDraw {
             }
         }
 
-        const buttonGroup = this.svg.append('g')
-            .attr('transform', `translate(${this.position.x + this.position.width - this.toggleWidth},${this.position.y + this.position.height + 10})`);
+        this.addToggleDetailButton();
 
-        this.toggleButton = buttonGroup.append('rect')
+        if (is3D) {
+            this.addToggle3DButton();
+            // if (is3D) {
+            const tensorGroup = this.svg.append('g')
+                .attr('transform', `translate(${this.position.x},${this.position.y})`)
+                .style('pointer-events', 'all')
+            this.tensorGroup3D = tensorGroup;
+            this.draw3DCube(tensorGroup, dims);
+            // this.addToggleDetailButton();
+        }
+
+        if (this.enable3DView) { // detail mode cannot display 3d tensor
+            this.show3Donly();
+        } else {
+            this.show2Donly();
+        }
+
+        this.updateVisualization();
+    }
+
+    addToggle3DButton() {
+        const buttonGroup = this.svg.append('g')
+            .attr('transform', `translate(${this.position.x + this.position.width - 3 * this.toggleWidth},${this.position.y + this.position.height + 10})`);    
+
+        this.toggle3DViewButton = buttonGroup.append('rect')
             .attr('width', this.toggleWidth)
             .attr('height', this.toggleHeight)
             .attr('rx', this.toggleHeight/2)
-            .attr('fill', 'rgba(0, 255, 0, 0.3)')
+            .attr('fill', 'rgba(0, 255, 0, 0.0)')
+            .attr('stroke', 'rgba(255, 255, 255, 0.4)')
+            .attr('cursor', 'pointer')
+            .style('pointer-events', 'all')
+            .on('click', () => this.toggle3DView());
+
+        const knobSize = this.toggleHeight - 4;
+        this.toggle3DKnob = buttonGroup.append('circle')
+            .attr('cx', 2 + knobSize/2)
+            .attr('cy', this.toggleHeight/2)
+            .attr('r', knobSize/2)
+            .attr('fill', 'rgba(255, 255, 255, 0.9)')
+            .attr('cursor', 'pointer')
+            .style('pointer-events', 'all')
+            .on('click', () => this.toggle3DView());
+
+        this.toggle3DViewText = buttonGroup.append('text')
+            .attr('font-size', '15px')
+            .attr('x', this.toggleWidth/2)
+            .attr('y', this.toggleHeight + 15)
+            .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'middle')
+            .attr('fill', 'rgba(255, 255, 255, 0.9)')
+            .text('2D');
+    }
+
+    addToggleDetailButton() {
+        const buttonGroup = this.svg.append('g')
+            .attr('transform', `translate(${this.position.x + this.position.width - this.toggleWidth},${this.position.y + this.position.height + 10})`);
+
+        this.toggleDetailViewButton = buttonGroup.append('rect')
+            .attr('width', this.toggleWidth)
+            .attr('height', this.toggleHeight)
+            .attr('rx', this.toggleHeight/2)
+            .attr('fill', 'rgba(255, 255, 255, 0.1)')
             .attr('stroke', 'rgba(255, 255, 255, 0.4)')
             .attr('cursor', 'pointer')
             .style('pointer-events', 'all')
             .on('click', () => this.toggleDetailMode());
 
         const knobSize = this.toggleHeight - 4;
-        this.toggleKnob = buttonGroup.append('circle')
-            .attr('cx', this.toggleWidth - 2 - knobSize/2)
+        this.toggleDetailKnob = buttonGroup.append('circle')
+            .attr('cx', 2 + knobSize/2)
             .attr('cy', this.toggleHeight/2)
             .attr('r', knobSize/2)
             .attr('fill', 'rgba(255, 255, 255, 0.9)')
@@ -602,13 +761,13 @@ export class TensorDraw {
             .style('pointer-events', 'all')
             .on('click', () => this.toggleDetailMode());
 
-        this.toggleText = buttonGroup.append('text')
+        this.toggleDetailViewText = buttonGroup.append('text')
             .attr('font-size', '15px')
             .attr('x', this.toggleWidth/2)
             .attr('y', this.toggleHeight + 15)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'middle')
             .attr('fill', 'rgba(255, 255, 255, 0.9)')
-            .text('Detail');
+            .text('Overview');
     }
 }
